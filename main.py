@@ -1,18 +1,16 @@
 import hashlib
 import json
-import sys
 import time
 
-import requests
 from playwright.sync_api import Page, Playwright, sync_playwright
 
 import auth
+import cli
 import commands
 import config
 from cache import FileCache
 
 BASE_URL = "https://www.instagram.com"
-headers = None
 
 
 def check_follower(page: Page, path: str):
@@ -35,8 +33,7 @@ def check_follower(page: Page, path: str):
 
 
 def run(playwright: Playwright):
-    encoded_username = hashlib.md5(config.Account.username.encode()).hexdigest()
-    cache = FileCache(f"cache/{encoded_username}", preload=True)
+    cache = FileCache(f"cache/{config.Account.get_encoded_username()}", preload=True)
 
     browser = playwright.chromium.launch(headless=False, slow_mo=300)
     context = browser.new_context()
@@ -113,6 +110,12 @@ def run(playwright: Playwright):
     browser.close()
 
 
-if __name__ == "__main__":
+def main():
+    cli.get_credentials()
+
     with sync_playwright() as playwright:
         run(playwright)
+
+
+if __name__ == "__main__":
+    main()

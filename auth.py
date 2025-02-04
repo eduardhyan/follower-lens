@@ -3,14 +3,14 @@ import os
 import pathlib
 import time
 
-from playwright.sync_api import BrowserContext, Page, Playwright, sync_playwright
+from playwright.sync_api import BrowserContext, Page
 
 import config
 
 
 def get_cookies():
     out = []
-    session_path = "sessions/latest.json"
+    session_path = config.Session.get_file_path()
     if os.path.exists(session_path):
         out = json.loads(pathlib.Path(session_path).read_text())
 
@@ -20,7 +20,7 @@ def get_cookies():
 def store_cookies(page: Page):
     cookies = page.context.cookies()
 
-    session_path = "sessions/latest.json"
+    session_path = config.Session.get_file_path()
     serialized_data = json.dumps(cookies)
     pathlib.Path(session_path).write_text(serialized_data)
 
@@ -32,10 +32,9 @@ def restore_cookies(context: BrowserContext):
 
     cookie_data = get_cookies()
     if len(cookie_data) > 0:
+        print("Cookies added!")
         context.add_cookies(cookie_data)
-
-    print("Cookies added!")
-    restored = True
+        restored = True
 
     return restored
 
