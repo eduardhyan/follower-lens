@@ -61,7 +61,7 @@ def manual_login(page: Page, persist_session=True):
     submit_btn = page.locator("css=#loginForm [type=submit]")
     submit_btn.click()
 
-    time.sleep(5)
+    page.wait_for_url("**/accounts/**")
 
     if persist_session:
         store_cookies(page)

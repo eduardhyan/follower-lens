@@ -80,7 +80,7 @@ def run(playwright: Playwright):
 
         # Scroll followers list to its' bottom
         page.evaluate("""() => {
-            const list = document.querySelector('[role=dialog] > div > div > div:nth-child(3)')
+            const list = document.querySelector('[role=dialog] [style*="overflow: hidden auto;"]').parentElement
             list.scrollTo({top: list.scrollHeight, behavior: "smooth"})
         }""")
 
