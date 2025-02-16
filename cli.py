@@ -1,15 +1,75 @@
-import getpass
+import os
+import re
+
+import inquirer
+from inquirer.themes import BlueComposure
+from rich.console import Console
+from rich.panel import Panel
+from rich.text import Text
+
+
 import config
+
+console = Console()
 
 
 def print_introduction():
     """
     Prints an introduction message to the user.
     """
-    print("=" * 40)
-    print("Welcome to Follower Lens")
-    print("Please enter your credentials to continue")
-    print("=" * 40)
+    title = Text("📸 Follower Lens 📸", style="bold cyan underline")
+
+    welcome_message = """
+    👋 Welcome to Follower Lens!  
+
+    Ever wondered who truly follows you back on Instagram?  
+    Let's uncover the reality—who's loyal, who's ghosting, and who’s just not that into you.  
+
+    🔍 First let's find your account on Instagram!
+    """
+
+    console.print(Panel.fit(welcome_message, title=title, style="bold green"))
+
+
+def ask_for_username():
+    """Keep asking until a valid username is provided."""
+    while True:
+        questions = [inquirer.Text("username", message="Enter your username")]
+        answers = inquirer.prompt(questions, theme=BlueComposure())
+        username = answers["username"].strip() if answers["username"] else ""
+
+        if username:
+            return username
+        else:
+            print("⚠️ Username cannot be empty. Please try again.")
+
+
+def ask_for_email():
+    """Keep asking until a valid email is provided."""
+    email_pattern = r"^[\w\.-]+@[\w\.-]+\.\w+$"
+
+    while True:
+        questions = [inquirer.Text("email", message="Enter your email")]
+        answers = inquirer.prompt(questions, theme=BlueComposure())
+        email = answers["email"].strip() if answers["email"] else ""
+
+        if re.match(email_pattern, email):
+            return email
+        else:
+            print("⚠️ Invalid email format. Please enter a valid email address.")
+
+
+def ask_for_password():
+    """Keep asking until a valid password is provided."""
+    while True:
+        questions = [inquirer.Password("password", message="Enter your password")]
+        answers = inquirer.prompt(questions, theme=BlueComposure())
+        password = answers["password"].strip() if answers["password"] else ""
+
+        if len(password) >= 6:
+            return password
+        else:
+            print("⚠️ Password must be at least 6 characters long. Please try again.")
 
 
 def prompt_for_credentials():
@@ -19,11 +79,20 @@ def prompt_for_credentials():
     Returns:
         tuple: A tuple containing the username, email, and password.
     """
-    print("\nPlease provide your credentials:")
-    username = input("Username: ")
-    email = input("Email: ")
-    password = getpass.getpass("Password: ")
-    return username, email, password
+    print("Please provide your credentials:")
+
+    answers = {}
+
+    answers["username"] = ask_for_username()
+    answers["email"] = ask_for_email()
+    answers["password"] = ask_for_password()
+
+    print("\n✅ Account details received!")
+    print(f"Username: {answers['username']}")
+    print(f"Email: {answers['email']}")
+    print("Password: 🔒 (Hidden for security)\n")
+
+    return answers["username"], answers["email"], answers["password"]
 
 
 def get_credentials():
@@ -33,15 +102,30 @@ def get_credentials():
     """
     print_introduction()
     if config.Account.init_credentials():
-        reuse = (
-            input(
-                f"Stored credentials for '{config.Account.username}' found. Would you like to reuse them? (Y/n): "
-            )
-            .strip()
-            .lower()
-        )
-        if reuse != "n":
+        questions = [
+            inquirer.List(
+                "proceed",
+                message=f"Are you '{config.Account.username}'?",
+                choices=["yes", "no"],
+                default="yes",
+            ),
+        ]
+
+        answers = inquirer.prompt(questions, theme=BlueComposure())
+
+        # We have credentials, no need to ask for them again
+        if answers["proceed"] == "yes":
             return
 
     username, email, password = prompt_for_credentials()
     config.Account.save_credentials(username=username, email=email, password=password)
+
+
+def clear():
+    # for windows
+    if os.name == "nt":
+        _ = os.system("cls")
+
+    # for mac and linux(here, os.name is 'posix')
+    else:
+        _ = os.system("clear")

@@ -1,8 +1,15 @@
-import hashlib
-import json
+import math
+import re
 import time
+from enum import Enum
+from pathlib import Path
+from rich.console import Console
+from rich.table import Table
+import json
+from inquirer.themes import BlueComposure
 
 from playwright.sync_api import Page, Playwright, sync_playwright
+import inquirer
 
 import auth
 import cli
@@ -12,15 +19,25 @@ from cache import FileCache
 
 BASE_URL = "https://www.instagram.com"
 
+console = Console()
+
 
 def check_follower(page: Page, path: str):
     page.goto(f"{BASE_URL}{path}")
 
     following_link_locator = page.locator("[role='link']")
     btn = following_link_locator.filter(has_text="following")
+
+    if btn.count() == 0:
+        print(f"Zero following: {path} -> {config.Account.username}")
+        return False
+
+    # Open following modal
     btn.click()
 
-    time.sleep(2)
+    # We need to wait for the followers list to be fetched
+    # here we'll wait for at least one profile picture to be shown
+    page.wait_for_selector('css=[role="dialog"] img[alt$="profile picture"]').is_visible
 
     accounts_locator = page.locator("[role='dialog'] [role='link']")
     my_account_link = accounts_locator.filter(has_text=config.Account.username)
@@ -57,26 +74,52 @@ def run(playwright: Playwright):
 
     # Open popup of people user follows
     following_link = link_lokator.filter(has_text="following")
+
+    followers_count = "".join(re.findall(r"\d+", following_link.text_content()))
+    followers_count = int(followers_count) if followers_count else 0
+
+    extraction_page_size = 12
+    max_expected_cycles = math.ceil(followers_count / extraction_page_size)
+    print(
+        f"Detected {followers_count} followers. Will do max {max_expected_cycles} cycles"
+    )
+
     following_link.click()
 
-    follower_usernames = []
+    prev_last_user = None
     # Extract first five names of followers
-    for _ in range(5):
+    for _ in range(max_expected_cycles):
         time.sleep(2)
+
+        # In cache we have exactly same number of followers
+        # as user has at this moment, no need to fetch follower names again
+        if followers_count == len(cache):
+            break
 
         following_links_locator = page.locator("css=div[role=dialog] a[role=link] span")
         following_links = following_links_locator.all()
 
+        # If after fetching new set of followers and the
+        # modal's content doesn't change, then no more followers left to analyze
+        new_last_user = following_links[-1].text_content()
+        if new_last_user == prev_last_user:
+            break
+        else:
+            prev_last_user = new_last_user
+
         current_chunk = []
         for link in following_links:
             name = link.text_content()
-            print("Name", name)
-            current_chunk.append(name)
 
-        follower_usernames = list(set(follower_usernames + current_chunk))
+            if cache.setIfAbsent(name):
+                # If the value previously didnt exist in cache
+                # add it to the follower_usernames to later check status of following
+                current_chunk.append(name)
+            else:
+                print(f"Data for {name} already exists in cache, will skip...")
 
-        with open("followers.json", "w", encoding="utf-8") as f:
-            f.write(json.dumps(follower_usernames))
+        # persist names in cache
+        cache.save()
 
         # Scroll followers list to its' bottom
         page.evaluate("""() => {
@@ -84,25 +127,24 @@ def run(playwright: Playwright):
             list.scrollTo({top: list.scrollHeight, behavior: "smooth"})
         }""")
 
-    for _, name in enumerate(follower_usernames):
+    for name in cache:
         nickname_with_path = f"/{name}/"
 
         print("-" * 40)
         print(f"User: {name or nickname_with_path}, URL: {nickname_with_path}")
 
-        following_data = cache.get(nickname_with_path)
+        following_data = cache.get(name)
         print("Following data", following_data)
         if isinstance(following_data, bool):
             print(
-                f"Skipping {nickname_with_path}, detected in cache that this account "
-                f"follows you: {following_data}"
+                f"Skipping {name}, following status detected. Follows you: {following_data} "
             )
             continue
 
         p2 = context.new_page()
         is_following = check_follower(p2, nickname_with_path)
 
-        cache.set(nickname_with_path, is_following)
+        cache.set(name, is_following)
         cache.save()
 
         p2.close()
@@ -110,11 +152,118 @@ def run(playwright: Playwright):
     browser.close()
 
 
+def display_followers(only_haters=False):
+    try:
+        follower_stats = json.loads(
+            Path(f"cache/{config.Account.get_encoded_username()}.json").read_text()
+        )
+    except:
+        follower_stats = []
+
+    table = Table(title="Instagram Followers")
+    table.add_column("#", justify="center", style="cyan", no_wrap=True)
+    table.add_column("Username", justify="left", style="cyan", no_wrap=True)
+    table.add_column("Following me back?", justify="left", style="magenta")
+    table.add_column("Account URL", justify="left", style="cyan")
+
+    idx = 1
+    for key in follower_stats:
+        label_follows_back = "[red]No[/red]"
+
+        if follower_stats[key]:
+            label_follows_back = "[green]Yes[/green]"
+
+            # If the user is following back (value is true)
+            # we don't show them in the table
+            if only_haters:
+                continue
+
+        table.add_row(
+            str(idx),
+            key,
+            label_follows_back,
+            f"{BASE_URL}/{key}/",
+        )
+        idx += 1
+
+    console.print(table)
+
+
+def clear_cache():
+    Path(f"cache/{config.Account.get_encoded_username()}.json").write_text("")
+    print(
+        "Cache cleared, the previously stored information about your followers is removed.\n"
+    )
+
+
 def main():
     cli.get_credentials()
 
-    with sync_playwright() as playwright:
-        run(playwright)
+    Command = Enum(
+        "Command",
+        [
+            ("START", 1),
+            ("LIST_HATERS", 2),
+            ("LIST_ALL", 3),
+            ("CLEAR_CACHE", 4),
+            ("EXIST", 5),
+        ],
+    )
+
+    questions = [
+        inquirer.List(
+            "command",
+            message="🔍 Choose one of the actions below",
+            choices=[
+                (
+                    "Find Unfollowers – (Start finding people who don't follow me back)",
+                    Command.START,
+                ),
+                (
+                    "Preview Unfollowers – (Preview only people who don’t follow me back)",
+                    Command.LIST_HATERS,
+                ),
+                (
+                    "View Full Follower List – (Preview full list of followers/non-followers)",
+                    Command.LIST_ALL,
+                ),
+                (
+                    "Clear the cache – (Delete locally stored data from previous executions)",
+                    Command.CLEAR_CACHE,
+                ),
+                ("Cancel & Exit – (Close the application and Exit)", Command.EXIST),
+            ],
+        )
+    ]
+
+    running = True
+    while running:
+        print("\n" + "=" * 40)
+        print("General Menu")
+        print("=" * 40 + "\n")
+
+        answers = inquirer.prompt(questions, theme=BlueComposure())
+        action = answers["command"]
+
+        match action:
+            case Command.START:
+                with sync_playwright() as playwright:
+                    run(playwright)
+
+            case Command.LIST_ALL:
+                display_followers()
+
+            case Command.LIST_HATERS:
+                display_followers(only_haters=True)
+
+            case Command.CLEAR_CACHE:
+                clear_cache()
+
+            case Command.EXIST:
+                print("Shutting down, see you next time 👋 ...")
+                running = False
+            case _:
+                print(f"Command {action} is not available yet!")
 
 
 if __name__ == "__main__":

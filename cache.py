@@ -13,11 +13,27 @@ class FileCache:
         if preload:
             self.load_cache()
 
+    def __len__(self):
+        return len(self.buffer)
+
+    def __iter__(self):
+        return iter(self.buffer)
+
     def set(self, key, value):
         self.buffer[key] = value
 
     def get(self, key):
         return self.buffer.get(key, None)
+
+    def setIfAbsent(self, key, value=None):
+        if not self.hasKey(key):
+            self.set(key, value)
+            return True
+
+        return False
+
+    def hasKey(self, key):
+        return key in self.buffer
 
     def save(self):
         self.ensure_file()
