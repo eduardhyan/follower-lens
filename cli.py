@@ -1,11 +1,13 @@
 import os
 import re
+import sys
 
 import inquirer
 from inquirer.themes import BlueComposure
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
+import commands
 
 
 import config
@@ -79,20 +81,69 @@ def prompt_for_credentials():
     Returns:
         tuple: A tuple containing the username, email, and password.
     """
-    print("Please provide your credentials:")
+    print("Please provide your account details:")
 
     answers = {}
-
     answers["username"] = ask_for_username()
-    answers["email"] = ask_for_email()
-    answers["password"] = ask_for_password()
+
+    is_public = commands.profile.check_if_account_is_public(answers["username"])
+
+    if not is_public:
+        message = (
+            "[bold red]This account is private![/bold red]\n\n"
+            "🔒 To continue, please make your account [bold]public[/bold] and rerun the program.\n"
+            "Alternatively, you can provide your credentials ([bold]email[/bold] and [bold]password[/bold]) "
+            "to allow us to access your \nfollower data and identify who doesn’t follow you back."
+        )
+
+        console.print(
+            Panel.fit(message, title="[cyan]Access Restricted[/cyan]", style="red")
+        )
+
+        # Ask user for their preferred method
+        questions = [
+            inquirer.List(
+                "method",
+                message="Which method would you like to use?",
+                choices=[
+                    (
+                        "🔓 I'll change my account type to public and rerun the app.",
+                        "manual",
+                    ),
+                    ("✉️ I want to enter my email and password.", "auto"),
+                ],
+            )
+        ]
+
+        method_answers = inquirer.prompt(questions, theme=BlueComposure())
+
+        if method_answers["method"] == "manual":
+            console.print("\n[bold green]Got it![/bold green] ✅")
+            console.print(
+                "Please change your Instagram account to [bold cyan]public[/bold cyan] and restart the app."
+            )
+            console.print(
+                "Once your account is public, you'll be able to proceed without providing credentials.\n"
+            )
+            sys.exit(0)
+        else:
+            answers["email"] = ask_for_email()
+            answers["password"] = ask_for_password()
 
     print("\n✅ Account details received!")
     print(f"Username: {answers['username']}")
-    print(f"Email: {answers['email']}")
-    print("Password: 🔒 (Hidden for security)\n")
+    print(f"Private: {not is_public}")
 
-    return answers["username"], answers["email"], answers["password"]
+    if not is_public:
+        print(f"Email: {answers['email']}")
+        print("Password: 🔒 (Hidden for security)\n")
+
+    return (
+        answers.get("username"),
+        answers.get("email", None),
+        answers.get("password", None),
+        is_public,
+    )
 
 
 def get_credentials():
@@ -100,7 +151,6 @@ def get_credentials():
     Retrieves user credentials. If stored credentials are found, prompts the user to reuse them.
     Otherwise, prompts the user to enter new credentials and saves them.
     """
-    print_introduction()
     if config.Account.init_credentials():
         questions = [
             inquirer.List(
@@ -117,15 +167,16 @@ def get_credentials():
         if answers["proceed"] == "yes":
             return
 
-    username, email, password = prompt_for_credentials()
-    config.Account.save_credentials(username=username, email=email, password=password)
+    username, email, password, is_public = prompt_for_credentials()
+    config.Account.save_credentials(
+        username=username, email=email, password=password, is_public=is_public
+    )
 
 
 def clear():
     # for windows
     if os.name == "nt":
         _ = os.system("cls")
-
     # for mac and linux(here, os.name is 'posix')
     else:
         _ = os.system("clear")

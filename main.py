@@ -1,15 +1,17 @@
+import json
 import math
 import re
+import sys
 import time
 from enum import Enum
 from pathlib import Path
+
+import inquirer
+from inquirer.themes import BlueComposure
+from playwright.sync_api import Page, Playwright, sync_playwright
 from rich.console import Console
 from rich.table import Table
-import json
-from inquirer.themes import BlueComposure
-
-from playwright.sync_api import Page, Playwright, sync_playwright
-import inquirer
+from rich.panel import Panel
 
 import auth
 import cli
@@ -37,7 +39,9 @@ def check_follower(page: Page, path: str):
 
     # We need to wait for the followers list to be fetched
     # here we'll wait for at least one profile picture to be shown
-    page.wait_for_selector('css=[role="dialog"] img[alt$="profile picture"]').is_visible
+    page.wait_for_selector(
+        'css=[role="dialog"] img[alt$="profile picture"]'
+    ).is_visible()
 
     accounts_locator = page.locator("[role='dialog'] [role='link']")
     my_account_link = accounts_locator.filter(has_text=config.Account.username)
@@ -152,6 +156,119 @@ def run(playwright: Playwright):
     browser.close()
 
 
+def run_simplified(playwright: Playwright):
+    cache_followers = FileCache(
+        f"cache/{config.Account.get_encoded_username()}.followers", preload=True
+    )
+    cache_followings = FileCache(
+        f"cache/{config.Account.get_encoded_username()}.followings", preload=True
+    )
+
+    browser = playwright.chromium.launch(headless=False, slow_mo=300)
+    context = browser.new_context()
+    page = context.new_page()
+
+    # 1. Restore cookies to not log in again
+    restored = auth.restore_cookies(context)
+    print(f"Session restored: {restored}")
+
+    # 2. Open user profile
+    # page.goto(f"{BASE_URL}/{config.Account.username}")
+    page.goto(f"{BASE_URL}/")
+
+    # 3. Check if Instagram blocks the bot
+    if page.locator(":has-text('Something went wrong')").count():
+        message = (
+            "[bold yellow]Instagram Rate Limit Reached! 🚧[/bold yellow]\n\n"
+            "Instagram has temporarily restricted actions to prevent spam-like behavior.\n"
+            "⏳ Please wait a few minutes before trying again.\n"
+        )
+
+        console.print(
+            Panel.fit(
+                message, title="[cyan]Action Temporarily Blocked[/cyan]", style="yellow"
+            )
+        )
+        sys.exit(0)
+
+    # 4. If cookie form appeared, close it
+    btn = page.get_by_text("Allow all cookies")
+    if btn.count():
+        btn.click()
+        time.sleep(2)
+
+    # 5. Account is private, we should submit login form
+    if not restored and not config.Account.is_public:
+        # 5.1.1 Open log in form if appeared
+        btn = page.locator('[role=dialog] [role=button]:has-text("Log in")')
+        if btn.count():
+            btn.click()
+
+        # 5.1.2 Fill the login form
+        auth.manual_login(page)
+
+        # 5.1.3 Go to Profile page
+        link_lokator = page.locator("[role='link']")
+        profile_link = link_lokator.filter(has_text="Profile")
+        profile_link.click()
+
+    elif restored and not config.Account.is_public:
+        # 5.2.1 Go to Profile page
+        link_lokator = page.locator("[role='link']")
+        profile_link = link_lokator.filter(has_text="Profile")
+        profile_link.click()
+
+        page.wait_for_url(f"**/{config.Account.username}/**")
+
+    elif config.Account.is_public:
+        # Store cookies after closing modals/popups
+        auth.store_cookies(page)
+
+    time.sleep(2)
+
+    # 6. Get all followers
+    commands.profile.extract_followers(
+        page=page, cache=cache_followers, my_followers=True
+    )
+
+    # 7. Close the dialog
+    page.locator('[role=dialog] svg:has-text("Close")').click()
+
+    # 8. Get all followings
+    commands.profile.extract_followers(
+        page=page, cache=cache_followings, my_followers=False
+    )
+
+    # 9. Shut down the browser
+    browser.close()
+
+    # 10. Print all findings
+    haters = []
+    for key in cache_followings:
+        if key not in cache_followers:
+            haters.append(key)
+
+    table = Table(title="Instagram Followers")
+    table.add_column("#", justify="center", style="cyan", no_wrap=True)
+    table.add_column("Username", justify="left", style="cyan", no_wrap=True)
+    table.add_column("Following me back?", justify="left", style="magenta")
+    table.add_column("Account URL", justify="left", style="cyan")
+
+    idx = 1
+    for username in haters:
+        label_follows_back = "[red]No[/red]"
+
+        table.add_row(
+            str(idx),
+            username,
+            label_follows_back,
+            f"{BASE_URL}/{username}/",
+        )
+        idx += 1
+
+    console.print(table)
+
+
 def display_followers(only_haters=False):
     try:
         follower_stats = json.loads(
@@ -197,6 +314,7 @@ def clear_cache():
 
 
 def main():
+    cli.print_introduction()
     cli.get_credentials()
 
     Command = Enum(
@@ -248,7 +366,7 @@ def main():
         match action:
             case Command.START:
                 with sync_playwright() as playwright:
-                    run(playwright)
+                    run_simplified(playwright)
 
             case Command.LIST_ALL:
                 display_followers()

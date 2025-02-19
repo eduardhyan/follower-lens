@@ -41,14 +41,18 @@ def restore_cookies(context: BrowserContext):
 
 def validate_auth_configs():
     if not config.Account.password:
-        raise Exception("Password not found in environment variables")
+        raise Exception("Password not found in configurations")
+
+    if not config.Account.email:
+        raise Exception("Email not found in configurations")
 
 
 def manual_login(page: Page, persist_session=True):
     validate_auth_configs()
 
     btn = page.get_by_text("Allow all cookies")
-    btn.click()
+    if btn.count():
+        btn.click()
 
     # Fill credentials
     username_input = page.get_by_label("Phone number, username, or email")
@@ -62,6 +66,7 @@ def manual_login(page: Page, persist_session=True):
     submit_btn.click()
 
     page.wait_for_url("**/accounts/**")
+    time.sleep(2)
 
     if persist_session:
         store_cookies(page)

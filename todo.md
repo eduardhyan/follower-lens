@@ -11,4 +11,7 @@
 9.  ✅ add inquirer for arrow selection of commands
 10. ✅ If loading of detect_follow takes too long, app considers it as "non-follower"
 11. ✅ clear the cache action
-12. Preview actions should be disabled if user does not have cache
+12. Recheck non-followers, double confirm them
+13. Add readme and preview page
+14. Get my follower list
+15. When profile is public img[alt="Profile photo"] does not exit
