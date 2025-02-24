@@ -8,7 +8,6 @@ class Account:
     username = None
     email = None
     password = None
-    is_public = None
 
     credentials_path = "cache/credentials.json"
 
@@ -27,20 +26,14 @@ class Account:
             Account.username = out.get("username", None)
             Account.email = out.get("email", None)
             Account.password = out.get("password", None)
-            Account.is_public = out.get("is_public", None)
 
-        # We have enough information if the account is public and the user name is captured
-        # For private accounts we need email and password mandatory
-        return (Account.username and Account.email and Account.password) or (
-            Account.username and Account.is_public
-        )
+        return Account.username and Account.email and Account.password
 
     @staticmethod
-    def save_credentials(username: str, email: str, password: str, is_public: bool):
+    def save_credentials(username: str, email: str, password: str):
         Account.username = username
         Account.email = email
         Account.password = password
-        Account.is_public = is_public
 
         pathlib.Path(Account.credentials_path).write_text(
             json.dumps(
@@ -48,7 +41,6 @@ class Account:
                     "username": username,
                     "email": email,
                     "password": password,
-                    "is_public": is_public,
                 }
             )
         )

@@ -1,5 +1,5 @@
-from pathlib import Path
 import json
+from pathlib import Path
 
 
 class FileCache:
@@ -8,7 +8,7 @@ class FileCache:
             file_path = f"{file_path}.json"
 
         self.file = Path(file_path)
-        self.buffer = {}
+        self.buffer = set()
 
         if preload:
             self.load_cache()
@@ -19,28 +19,21 @@ class FileCache:
     def __iter__(self):
         return iter(self.buffer)
 
-    def set(self, key, value):
-        self.buffer[key] = value
+    def set(self, value):
+        self.buffer.add(value)
 
-    def get(self, key):
-        return self.buffer.get(key, None)
-
-    def setIfAbsent(self, key, value=None):
-        if not self.hasKey(key):
-            self.set(key, value)
-            return True
-
-        return False
-
-    def hasKey(self, key):
+    def has(self, key):
         return key in self.buffer
 
     def save(self):
         self.ensure_file()
         self.file.write_text(self.serialize())
 
+    def get_as_list(self):
+        return list(self.buffer)
+
     def serialize(self):
-        return json.dumps(self.buffer)
+        return json.dumps(self.get_as_list())
 
     def load_cache(self):
         self.ensure_file()
@@ -48,7 +41,7 @@ class FileCache:
         try:
             self.buffer = json.loads(self.file.read_text())
         except json.decoder.JSONDecodeError:
-            self.buffer = {}
+            self.buffer = set()
 
     def ensure_file(self):
         if not self.file.exists():

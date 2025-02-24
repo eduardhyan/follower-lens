@@ -2,39 +2,15 @@ import math
 import re
 import time
 
-from playwright.sync_api import Page, sync_playwright
+from playwright.sync_api import Page
+
 from cache import FileCache
 
 
-def check_if_account_is_public(username: str):
-    out = True
-    print("Checking if the account is public...")
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True, slow_mo=300)
-
-        page = browser.new_page()
-        page.goto(f"https://instagram.com/{username}/?hl=en")
-
-        print("Waiting for the page to load...")
-        page.locator('button[type=button]:has-text("Follow")').first.wait_for()
-
-        # Username appeared on the page
-        private_indicator = page.get_by_text("This Account is Private")
-
-        if private_indicator.count():
-            out = False
-
-        browser.close()
-
-    return out
-
-
 def extract_followers(page: Page, cache: FileCache, my_followers=True):
-    link_lokator = page.locator("[role='link']")
-
     # Open popup of people user follows
     btn_text = "followers" if my_followers else "following"
-    following_link = link_lokator.filter(has_text=btn_text)
+    following_link = page.locator(f"header ul [role=link]:has-text('{btn_text}')")
 
     followers_count = "".join(re.findall(r"\d+", following_link.text_content()))
     followers_count = int(followers_count) if followers_count else 0
@@ -68,16 +44,9 @@ def extract_followers(page: Page, cache: FileCache, my_followers=True):
         else:
             prev_last_user = new_last_user
 
-        current_chunk = []
         for link in following_links:
             name = link.text_content()
-
-            if cache.setIfAbsent(name):
-                # If the value previously didnt exist in cache
-                # add it to the follower_usernames to later check status of following
-                current_chunk.append(name)
-            else:
-                print(f"Data for {name} already exists in cache, will skip...")
+            cache.set(name)
 
         # persist names in cache
         cache.save()
