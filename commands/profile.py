@@ -1,13 +1,27 @@
+"""
+This module provides functions for extracting followers and followings from an Instagram profile.
+"""
+
 import math
 import re
 import time
 
 from playwright.sync_api import Page
 
-from cache import FileCache
+from cache import FollowerCache
 
 
-def extract_followers(page: Page, cache: FileCache, my_followers=True):
+def extract_followers(page: Page, repo: FollowerCache, my_followers=True):
+    """
+    Extracts followers or followings from an Instagram profile and stores them in a cache.
+
+    Args:
+        page (Page): The Playwright page object.
+        repo (FollowerCache): The cache object to store followers or followings.
+        my_followers (bool): If True, extracts followers; otherwise, extracts followings.
+    """
+    collection = repo.followers if my_followers else repo.followings
+
     # Open popup of people user follows
     btn_text = "followers" if my_followers else "following"
     following_link = page.locator(f"header ul [role=link]:has-text('{btn_text}')")
@@ -24,13 +38,13 @@ def extract_followers(page: Page, cache: FileCache, my_followers=True):
     following_link.click()
 
     prev_last_user = None
-    # Extract first five names of followers
+    # Extract followers or followings
     for _ in range(max_expected_cycles):
         time.sleep(2)
 
         # In cache we have exactly same number of followers
         # as user has at this moment, no need to fetch follower names again
-        if followers_count == len(cache):
+        if followers_count == len(collection):
             break
 
         following_links_locator = page.locator("css=div[role=dialog] a[role=link] span")
@@ -41,18 +55,18 @@ def extract_followers(page: Page, cache: FileCache, my_followers=True):
         new_last_user = following_links[-1].text_content()
         if new_last_user == prev_last_user:
             break
-        else:
-            prev_last_user = new_last_user
+
+        prev_last_user = new_last_user
 
         for link in following_links:
             name = link.text_content()
-            cache.set(name)
+            collection.add(name)
 
-        # persist names in cache
-        cache.save()
+        # Persist names in cache
+        repo.save()
 
-        # Scroll followers list to its' bottom
+        # Scroll followers list to its bottom
         page.evaluate("""() => {
-            const list = document.querySelector('[role=dialog] [style*="overflow: hidden auto;"]').parentElement
-            list.scrollTo({top: list.scrollHeight, behavior: "smooth"})
+            const list = document.querySelector('[role=dialog] [style*="overflow: hidden auto;"]').parentElement;
+            list.scrollTo({top: list.scrollHeight, behavior: "smooth"});
         }""")

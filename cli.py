@@ -1,3 +1,9 @@
+"""
+This module provides CLI-related functions for the Follower Lens application.
+It includes functions for printing an introduction, prompting for user credentials,
+and clearing the console.
+"""
+
 import os
 import re
 
@@ -31,7 +37,12 @@ def print_introduction():
 
 
 def ask_for_username():
-    """Keep asking until a valid username is provided."""
+    """
+    Prompts the user to enter a valid username.
+
+    Returns:
+        str: The entered username.
+    """
     while True:
         questions = [inquirer.Text("username", message="Enter your username")]
         answers = inquirer.prompt(questions, theme=BlueComposure())
@@ -40,11 +51,16 @@ def ask_for_username():
         if username:
             return username
         else:
-            print("⚠️ Username cannot be empty. Please try again.")
+            console.print("⚠️ [red]Username cannot be empty. Please try again.[/red]")
 
 
 def ask_for_email():
-    """Keep asking until a valid email is provided."""
+    """
+    Prompts the user to enter a valid email address.
+
+    Returns:
+        str: The entered email address.
+    """
     email_pattern = r"^[\w\.-]+@[\w\.-]+\.\w+$"
 
     while True:
@@ -55,11 +71,18 @@ def ask_for_email():
         if re.match(email_pattern, email):
             return email
         else:
-            print("⚠️ Invalid email format. Please enter a valid email address.")
+            console.print(
+                "⚠️ [red]Invalid email format. Please enter a valid email address.[/red]"
+            )
 
 
 def ask_for_password():
-    """Keep asking until a valid password is provided."""
+    """
+    Prompts the user to enter a valid password.
+
+    Returns:
+        str: The entered password.
+    """
     while True:
         questions = [inquirer.Password("password", message="Enter your password")]
         answers = inquirer.prompt(questions, theme=BlueComposure())
@@ -68,7 +91,9 @@ def ask_for_password():
         if len(password) >= 6:
             return password
         else:
-            print("⚠️ Password must be at least 6 characters long. Please try again.")
+            console.print(
+                "⚠️ [red]Password must be at least 6 characters long. Please try again.[/red]"
+            )
 
 
 def prompt_for_credentials():
@@ -78,23 +103,18 @@ def prompt_for_credentials():
     Returns:
         tuple: A tuple containing the username, email, and password.
     """
-    print("Please provide your account details:")
+    console.print("Please provide your account details:")
 
-    answers = {}
-    answers["username"] = ask_for_username()
-    answers["email"] = ask_for_email()
-    answers["password"] = ask_for_password()
+    username = ask_for_username()
+    email = ask_for_email()
+    password = ask_for_password()
 
-    print("\n✅ Account details received!")
-    print(f"Username: {answers['username']}")
-    print(f"Email: {answers['email']}")
-    print("Password: 🔒 (Hidden for security)\n")
+    console.print("\n✅ [green]Account details received![/green]")
+    console.print(f"Username: {username}")
+    console.print(f"Email: {email}")
+    console.print("Password: 🔒 (Hidden for security)\n")
 
-    return (
-        answers.get("username"),
-        answers.get("email", None),
-        answers.get("password", None),
-    )
+    return username, email, password
 
 
 def get_credentials():
@@ -114,7 +134,6 @@ def get_credentials():
 
         answers = inquirer.prompt(questions, theme=BlueComposure())
 
-        # We have credentials, no need to ask for them again
         if answers["proceed"] == "yes":
             return
 
@@ -123,9 +142,10 @@ def get_credentials():
 
 
 def clear():
-    # for windows
+    """
+    Clears the console.
+    """
     if os.name == "nt":
         _ = os.system("cls")
-    # for mac and linux(here, os.name is 'posix')
     else:
         _ = os.system("clear")
