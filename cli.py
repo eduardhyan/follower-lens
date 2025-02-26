@@ -13,7 +13,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
-import config
+from model import Account
 
 console = Console()
 
@@ -117,16 +117,16 @@ def prompt_for_credentials():
     return username, email, password
 
 
-def get_credentials():
+def get_credentials(account: Account):
     """
     Retrieves user credentials. If stored credentials are found, prompts the user to reuse them.
     Otherwise, prompts the user to enter new credentials and saves them.
     """
-    if config.Account.init_credentials():
+    if account.load_credentials():
         questions = [
             inquirer.List(
                 "proceed",
-                message=f"Are you '{config.Account.username}'?",
+                message=f"Are you '{account.username}'?",
                 choices=["yes", "no"],
                 default="yes",
             ),
@@ -138,7 +138,7 @@ def get_credentials():
             return
 
     username, email, password = prompt_for_credentials()
-    config.Account.save_credentials(username=username, email=email, password=password)
+    account.save_credentials(username=username, email=email, password=password)
 
 
 def clear():

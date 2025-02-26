@@ -1,8 +1,5 @@
 """
 This module provides the FollowerInsights class for analyzing follower and following data.
-
-Classes:
-    FollowerInsights: A class for analyzing Instagram followers and followings.
 """
 
 

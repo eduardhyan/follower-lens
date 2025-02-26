@@ -1,3 +1,8 @@
+"""
+This module provides the main entry point for the Instagram follower analysis tool.
+It includes functions to run the tool, clear the cache, and handle user commands.
+"""
+
 import sys
 import time
 from enum import Enum
@@ -10,22 +15,28 @@ from playwright.sync_api import Playwright, sync_playwright
 import auth
 import cli
 import commands
-import config
 import console
 import constants
 from analyzer import FollowerInsights
 from cache import FollowerCache
+from model import Account
 
-follower_insights = FollowerInsights()
 
+def run_simplified(playwright: Playwright, account: Account, repo: FollowerCache):
+    """
+    Run the simplified version of the follower analysis tool.
 
-def run_simplified(playwright: Playwright, repo: FollowerCache):
+    Args:
+        playwright (Playwright): The Playwright instance.
+        account (Account): The account object containing user credentials.
+        repo (FollowerCache): The cache object to store followers or followings.
+    """
     browser = playwright.chromium.launch(headless=False, slow_mo=300)
     context = browser.new_context()
     page = context.new_page()
 
     # 1. Restore cookies to not log in again
-    restored = auth.restore_cookies(context)
+    restored = auth.restore_cookies(context, account)
     print(f"Session restored: {restored}")
 
     page.goto(f"{constants.IG_BASE_URL}/")
@@ -36,44 +47,57 @@ def run_simplified(playwright: Playwright, repo: FollowerCache):
         sys.exit(0)
 
     # 3. Fill the login form
-    if restored:
-        # 6. Go to Profile page
-        link_lokator = page.locator("[role='link']")
-        profile_link = link_lokator.filter(has_text="Profile")
-        profile_link.click()
+    if not restored:
+        auth.manual_login(page, account)
 
-        page.wait_for_url(f"**/{config.Account.username}/**")
-        time.sleep(2)
-    else:
-        auth.manual_login(page)
+    # 4. Go to Profile page
+    link_locator = page.locator("[role='link']")
+    profile_link = link_locator.filter(has_text="Profile")
+    profile_link.click()
 
-    # 7. Get all followers
+    page.wait_for_url(f"**/{account.username}/**")
+    time.sleep(2)
+
+    # 5. Get all followers
     commands.profile.extract_followers(page=page, repo=repo, my_followers=True)
 
-    # 8. Close the dialog
+    # 6. Close the dialog
     page.locator('[role=dialog] svg:has-text("Close")').click()
 
-    # 9. Get all followings
+    # 7. Get all followings
     commands.profile.extract_followers(page=page, repo=repo, my_followers=False)
 
-    # 10. Shut down the browser
+    # 8. Shut down the browser
     browser.close()
-
     print("✅ Successfully collected all information about your followers!")
 
 
-def clear_cache():
-    Path(f"cache/{config.Account.get_encoded_username()}.json").write_text("")
+def clear_cache(account: Account):
+    """
+    Clear the cache for the given account.
+
+    Args:
+        account (Account): The account object containing user credentials.
+    """
+    Path(f"cache/{account.get_encoded_username()}.json").write_text("")
     print(
         "Cache cleared, the previously stored information about your followers is removed.\n"
     )
 
 
 def main():
+    """
+    The main entry point for the Instagram follower analysis tool.
+    Handles user commands and runs the appropriate functions.
+    """
     cli.print_introduction()
-    cli.get_credentials()
 
-    repo = FollowerCache(f"cache/{config.Account.get_encoded_username()}", preload=True)
+    # Setup account and read credentials from cache
+    account = Account()
+    cli.get_credentials(account)
+
+    repo = FollowerCache(f"cache/{account.get_encoded_username()}", preload=True)
+    follower_insights = FollowerInsights()
     follower_insights.load(repo.followers.to_list(), repo.followings.to_list())
 
     Command = Enum(
@@ -102,7 +126,7 @@ def main():
                     Command.LIST_HATERS,
                 ),
                 (
-                    "Preview Ghosts – (Preview only people who follow me but I don't folllow them)",
+                    "Preview Ghosts – (Preview only people who follow me but I don't follow them)",
                     Command.LIST_GHOSTS,
                 ),
                 (
@@ -126,7 +150,7 @@ def main():
         match action:
             case Command.START:
                 with sync_playwright() as playwright:
-                    run_simplified(playwright, repo)
+                    run_simplified(playwright, account, repo)
 
                     follower_insights.load(
                         repo.followers.to_list(), repo.followings.to_list()
@@ -150,7 +174,7 @@ def main():
                 )
 
             case Command.CLEAR_CACHE:
-                clear_cache()
+                clear_cache(account)
                 follower_insights.flush()
 
             case Command.EXIST:

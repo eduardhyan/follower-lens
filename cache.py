@@ -3,17 +3,6 @@ This module provides classes for managing a cache of followers and followings
 using JSON files. It includes a SetBuffer class for storing unique items in a set
 and a FollowerCache class for handling the serialization and deserialization of
 follower data to and from a JSON file.
-
-Classes:
-    SetBuffer: A buffer that stores unique items in a set.
-    FollowerCache: A cache that stores followers and followings in a JSON file.
-
-Usage example:
-    cache = FollowerCache("path/to/cache_file")
-    cache.followers.add("follower1")
-    cache.followings.add("following1")
-    cache.save()
-    cache.load_cache()
 """
 
 import json
