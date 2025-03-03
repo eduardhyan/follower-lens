@@ -10,10 +10,6 @@ Follower Lens is a tool designed to help you analyze your Instagram followers an
 - **Cache Management**: Store and manage follower data locally to speed up analysis.
 - **User-Friendly CLI**: Interact with the tool through a command-line interface with prompts and clear instructions.
 
-## Demo
-
-![Demo](.github/images/demo.gif)
-
 ## Installation
 
 1. **Clone the repository**:
