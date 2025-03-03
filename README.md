@@ -26,10 +26,14 @@ Follower Lens is a tool designed to help you analyze your Instagram followers an
    source venv/bin/activate  # On Windows use `venv\Scripts\activate`
    ```
 
+   > ⚠️ **For Windows users**
+   >
+   > Make sure you have [unrestricted execution policy](https://stackoverflow.com/a/67553273/10781026) for your current user.
+
 3. **Install the required dependencies**:
 
    ```sh
-   pip3 install -r ./requirements.txt --index-url=https://pypi.org/simple
+   pip install -r ./requirements.txt --index-url=https://pypi.org/simple
    ```
 
 4. **Install Playwright browsers**:

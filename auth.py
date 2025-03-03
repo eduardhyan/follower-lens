@@ -27,7 +27,7 @@ def get_cookies(account: model.Account):
 
     if os.path.exists(session_path):
         try:
-            out = json.loads(pathlib.Path(session_path).read_text())
+            out = json.loads(pathlib.Path(session_path).read_text(encoding="utf-8"))
         except json.decoder.JSONDecodeError:
             return out
 
@@ -44,7 +44,9 @@ def store_cookies(page: Page, account: model.Account):
     cookies = page.context.cookies()
     session_path = get_session_path(account)
     serialized_data = json.dumps(cookies)
-    pathlib.Path(session_path).write_text(serialized_data)
+    file = pathlib.Path(session_path)
+    file.parent.mkdir(parents=True, exist_ok=True)
+    file.write_text(serialized_data, encoding="utf-8")
     print("Stored latest cookies in session!")
 
 
