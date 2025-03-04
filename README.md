@@ -22,8 +22,8 @@ Follower Lens is a tool designed to help you analyze your Instagram followers an
 2. **Create a virtual environment**:
 
    ```sh
-   python -m venv venv
-   source venv/bin/activate  # On Windows use `venv\Scripts\activate`
+   python -m venv .venv
+   source .venv/bin/activate  # On Windows use `.venv\Scripts\activate`
    ```
 
    > ⚠️ **For Windows users**
